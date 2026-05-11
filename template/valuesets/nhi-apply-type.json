@@ -1,0 +1,24 @@
+{
+  "resourceType": "CodeSystem",
+  "id": "nhi-apply-type",
+  "url": "https://nhicore.nhi.gov.tw/ngs/CodeSystem/nhi-apply-type",
+  "version": "1.0.0",
+  "name": "NHIApplyType",
+  "title": "NHI-健保NGS-申報類別",
+  "status": "active",
+  "experimental": false,
+  "date": "2025-04-30",
+  "publisher": "衛生福利部中央健康保險署",
+  "contact": [{ "name": "衛生福利部中央健康保險署", "telecom": [{ "system": "url", "value": "https://www.nhi.gov.tw" }] }],
+  "description": "臺灣衛生福利部中央健康保險署「申報類別」代碼",
+  "caseSensitive": true,
+  "content": "complete",
+  "count": 5,
+  "concept": [
+    { "code": "1", "display": "送核" },
+    { "code": "2", "display": "送核補件" },
+    { "code": "3", "display": "申復" },
+    { "code": "4", "display": "爭議審議" },
+    { "code": "5", "display": "申復補件" }
+  ]
+}

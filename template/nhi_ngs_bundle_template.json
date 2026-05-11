@@ -1,0 +1,242 @@
+{
+  "_comment": "健保署 NGS FHIR 申報 Bundle Template (Taiwan NGS IG v1.0.1)",
+  "_spec": "https://build.fhir.org/ig/TWNHIFHIR/ngs/",
+  "resourceType": "Bundle",
+  "type": "transaction",
+  "entry": [
+
+    {
+      "_comment": "1. Patient — 病人基本資料",
+      "fullUrl": "urn:uuid:{{PATIENT_UUID}}",
+      "resource": {
+        "resourceType": "Patient",
+        "id": "{{PATIENT_UUID}}",
+        "identifier": [
+          {
+            "use": "official",
+            "type": { "coding": [{ "system": "http://terminology.hl7.org/CodeSystem/v2-0203", "code": "MR" }] },
+            "system": "{{HOSPITAL_OID}}",
+            "value": "{{MRN}}"
+          }
+        ],
+        "name": [{ "use": "official", "text": "{{PATIENT_NAME}}" }],
+        "gender": "{{male|female|other|unknown}}",
+        "birthDate": "{{YYYY-MM-DD}}"
+      },
+      "request": { "method": "PUT", "url": "Patient/{{PATIENT_UUID}}" }
+    },
+
+    {
+      "_comment": "2. Specimen — 檢體資訊",
+      "fullUrl": "urn:uuid:{{SPECIMEN_UUID}}",
+      "resource": {
+        "resourceType": "Specimen",
+        "id": "{{SPECIMEN_UUID}}",
+        "identifier": [
+          { "system": "{{HOSPITAL_OID}}", "value": "{{PATHOLOGY_NUMBER}}" }
+        ],
+        "accessionIdentifier": {
+          "system": "{{HOSPITAL_OID}}", "value": "{{SPECIMEN_BARCODE}}"
+        },
+        "type": {
+          "coding": [
+            {
+              "_comment": "type code 需查健保 NGS ValueSet，例：血液=57715-3",
+              "system": "http://loinc.org",
+              "code": "{{SPECIMEN_TYPE_CODE}}",
+              "display": "{{SPECIMEN_TYPE_DISPLAY}}"
+            }
+          ]
+        },
+        "subject": { "reference": "urn:uuid:{{PATIENT_UUID}}" },
+        "collection": {
+          "collector": { "reference": "{{PRACTITIONER_REFERENCE}}" },
+          "collectedDateTime": "{{YYYY-MM-DDTHH:MM:SS+08:00}}"
+        },
+        "container": [
+          { "identifier": [{ "value": "{{CONTAINER_ID}}" }] }
+        ]
+      },
+      "request": { "method": "PUT", "url": "Specimen/{{SPECIMEN_UUID}}" }
+    },
+
+    {
+      "_comment": "3. ServiceRequest — 基因檢測申請單",
+      "fullUrl": "urn:uuid:{{SERVICE_REQUEST_UUID}}",
+      "resource": {
+        "resourceType": "ServiceRequest",
+        "id": "{{SERVICE_REQUEST_UUID}}",
+        "status": "completed",
+        "intent": "order",
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "81247-9",
+              "display": "Master HL7 genetic variant reporting panel"
+            }
+          ]
+        },
+        "subject": { "reference": "urn:uuid:{{PATIENT_UUID}}" },
+        "requester": { "reference": "{{PRACTITIONER_REFERENCE}}" },
+        "specimen": [{ "reference": "urn:uuid:{{SPECIMEN_UUID}}" }]
+      },
+      "request": { "method": "PUT", "url": "ServiceRequest/{{SERVICE_REQUEST_UUID}}" }
+    },
+
+    {
+      "_comment": "4. Device — 定序設備",
+      "fullUrl": "urn:uuid:{{DEVICE_UUID}}",
+      "resource": {
+        "resourceType": "Device",
+        "id": "{{DEVICE_UUID}}",
+        "manufacturer": "{{MANUFACTURER}}",
+        "deviceName": [
+          { "name": "{{DEVICE_MODEL}}", "type": "model-name" }
+        ],
+        "type": {
+          "coding": [
+            { "system": "http://snomed.info/sct", "code": "706687001", "display": "Sequencer" }
+          ]
+        }
+      },
+      "request": { "method": "PUT", "url": "Device/{{DEVICE_UUID}}" }
+    },
+
+    {
+      "_comment": "5. Observation — 基因變異結果（每個基因套組一筆，可多筆）",
+      "fullUrl": "urn:uuid:{{OBSERVATION_UUID}}",
+      "resource": {
+        "resourceType": "Observation",
+        "id": "{{OBSERVATION_UUID}}",
+        "identifier": [
+          {
+            "_comment": "VPN 格式：癌別+年份+5碼流水號，例：BC202600001",
+            "system": "https://nhicore.nhi.gov.tw/ngs/identifier/vpn",
+            "value": "{{VPN_ID}}"
+          }
+        ],
+        "status": "final",
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "69548-6",
+              "display": "Genetic variant assessment"
+            }
+          ]
+        },
+        "subject": { "reference": "urn:uuid:{{PATIENT_UUID}}" },
+        "effectiveDateTime": "{{YYYY-MM-DDTHH:MM:SS+08:00}}",
+        "performer": [{ "reference": "{{ORGANIZATION_REFERENCE}}" }],
+        "specimen": { "reference": "urn:uuid:{{SPECIMEN_UUID}}" },
+        "device": { "reference": "urn:uuid:{{DEVICE_UUID}}" },
+        "method": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "LA26398-0",
+              "display": "Sequencing"
+            }
+          ]
+        },
+        "component": [
+          {
+            "_comment": "必要 component 1：基因套組代碼",
+            "code": {
+              "coding": [{ "system": "http://loinc.org", "code": "81247-9", "display": "Master HL7 genetic variant reporting panel" }]
+            },
+            "valueCodeableConcept": {
+              "_comment": "套組代碼需查健保 NGS ValueSet",
+              "coding": [
+                { "system": "https://nhicore.nhi.gov.tw/ngs/CodeSystem/gene-test-code", "code": "{{GENE_PANEL_CODE}}", "display": "{{GENE_PANEL_DISPLAY}}" }
+              ]
+            }
+          },
+          {
+            "_comment": "必要 component 2：基因名稱（HGNC 格式）",
+            "code": {
+              "coding": [{ "system": "http://loinc.org", "code": "48018-6", "display": "Gene studied [ID]" }]
+            },
+            "valueCodeableConcept": {
+              "coding": [
+                { "system": "http://www.genenames.org", "code": "HGNC:{{HGNC_ID}}", "display": "{{GENE_SYMBOL}}" }
+              ]
+            }
+          },
+          {
+            "_comment": "必要 component 3：HGVS c. notation",
+            "code": {
+              "coding": [{ "system": "http://loinc.org", "code": "48004-6", "display": "DNA change (c.HGVS)" }]
+            },
+            "valueCodeableConcept": {
+              "text": "{{HGVS_C}}"
+            }
+          },
+          {
+            "_comment": "選填 component 4：HGVS p. notation",
+            "code": {
+              "coding": [{ "system": "http://loinc.org", "code": "48005-3", "display": "Amino acid change (pHGVS)" }]
+            },
+            "valueCodeableConcept": {
+              "text": "{{HGVS_P}}"
+            }
+          },
+          {
+            "_comment": "選填 component 5：臨床意義",
+            "code": {
+              "coding": [{ "system": "http://loinc.org", "code": "53037-8", "display": "Genetic variation clinical significance" }]
+            },
+            "valueCodeableConcept": {
+              "coding": [
+                {
+                  "system": "http://loinc.org",
+                  "code": "{{LA6668-3|LA26332-9|LA26333-7|LA26334-5|LA6675-8}}",
+                  "display": "{{Pathogenic|Likely pathogenic|VUS|Likely benign|Benign}}"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "request": { "method": "PUT", "url": "Observation/{{OBSERVATION_UUID}}" }
+    },
+
+    {
+      "_comment": "6. DiagnosticReport — 整份基因報告（彙整所有 Observation）",
+      "fullUrl": "urn:uuid:{{REPORT_UUID}}",
+      "resource": {
+        "resourceType": "DiagnosticReport",
+        "id": "{{REPORT_UUID}}",
+        "extension": [
+          {
+            "_comment": "疾病資訊 extension（Must-Support）",
+            "url": "https://nhicore.nhi.gov.tw/ngs/StructureDefinition/extension-DiagnosticReport-condition",
+            "valueReference": { "reference": "{{CONDITION_REFERENCE}}" }
+          }
+        ],
+        "status": "final",
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "51969-4",
+              "display": "Genetic analysis report"
+            }
+          ]
+        },
+        "subject": { "reference": "urn:uuid:{{PATIENT_UUID}}" },
+        "effectiveDateTime": "{{YYYY-MM-DDTHH:MM:SS+08:00}}",
+        "performer": [{ "reference": "{{ORGANIZATION_REFERENCE}}" }],
+        "basedOn": [{ "reference": "urn:uuid:{{SERVICE_REQUEST_UUID}}" }],
+        "specimen": [{ "reference": "urn:uuid:{{SPECIMEN_UUID}}" }],
+        "result": [
+          { "reference": "urn:uuid:{{OBSERVATION_UUID}}" }
+        ],
+        "conclusion": "{{REPORT_CONCLUSION}}"
+      },
+      "request": { "method": "PUT", "url": "DiagnosticReport/{{REPORT_UUID}}" }
+    }
+
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "resourceType": "ValueSet",
+  "id": "dna-change-type",
+  "url": "https://nhicore.nhi.gov.tw/ngs/ValueSet/dna-change-type",
+  "version": "1.0.0",
+  "name": "DNAChangeType",
+  "title": "LOINC-健保NGS-基因突變類型值集",
+  "status": "active",
+  "experimental": false,
+  "date": "2025-04-30",
+  "publisher": "衛生福利部中央健康保險署",
+  "contact": [{ "name": "衛生福利部中央健康保險署", "telecom": [{ "system": "url", "value": "https://www.nhi.gov.tw" }] }],
+  "description": "LOINC-健保NGS-基因突變類型值集",
+  "compose": {
+    "include": [{
+      "system": "http://loinc.org",
+      "concept": [
+        { "code": "LA6692-3", "display": "Deletion" },
+        { "code": "LA6686-5", "display": "Duplication" },
+        { "code": "LA6687-3", "display": "Insertion" },
+        { "code": "LA6688-1", "display": "Insertion/Deletion (indel)" },
+        { "code": "LA6689-9", "display": "Inversion" },
+        { "code": "LA6690-7", "display": "Substitution" }
+      ]
+    }]
+  }
+}

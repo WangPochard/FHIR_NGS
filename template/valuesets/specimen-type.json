@@ -1,0 +1,25 @@
+{
+  "resourceType": "ValueSet",
+  "id": "specime-type",
+  "url": "https://nhicore.nhi.gov.tw/ngs/ValueSet/specime-type",
+  "version": "1.0.0",
+  "name": "SpecimenType",
+  "title": "LOINC-健保NGS-基因檢測檢體類型值集",
+  "status": "active",
+  "experimental": false,
+  "date": "2025-04-30",
+  "publisher": "衛生福利部中央健康保險署",
+  "contact": [{ "name": "衛生福利部中央健康保險署", "telecom": [{ "system": "url", "value": "https://www.nhi.gov.tw" }] }],
+  "description": "LOINC-健保NGS-基因檢測檢體類型值集",
+  "compose": {
+    "include": [{
+      "system": "http://loinc.org",
+      "concept": [
+        { "code": "LP7057-5",    "display": "Bld" },
+        { "code": "LP234849-0",  "display": "XXX>Tissue" },
+        { "code": "LP7641-6",    "display": "Tiss" },
+        { "code": "LP247830-5",  "display": "Cancer specimen" }
+      ]
+    }]
+  }
+}

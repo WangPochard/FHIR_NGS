@@ -1,0 +1,28 @@
+{
+  "resourceType": "ValueSet",
+  "id": "nhi-ngs-payment",
+  "url": "https://nhicore.nhi.gov.tw/ngs/ValueSet/nhi-ngs-payment",
+  "version": "1.0.0",
+  "name": "NHINGSPayment",
+  "title": "NHI-健保NGS-NGS檢驗給付項目值集",
+  "status": "active",
+  "experimental": false,
+  "date": "2025-04-30",
+  "publisher": "衛生福利部中央健康保險署",
+  "contact": [{ "name": "衛生福利部中央健康保險署", "telecom": [{ "system": "url", "value": "https://www.nhi.gov.tw" }] }],
+  "description": "NHI-健保NGS-NGS檢驗給付項目值集",
+  "compose": {
+    "include": [{
+      "system": "https://twcore.mohw.gov.tw/ig/twcore/CodeSystem/medical-service-payment-tw",
+      "concept": [
+        { "code": "30301B", "display": "實體腫瘤次世代基因定序－BRCA1/2基因檢測" },
+        { "code": "30302B", "display": "實體腫瘤次世代基因定序－小套組(≦100個基因)" },
+        { "code": "30303B", "display": "實體腫瘤次世代基因定序－大套組(＞100個基因)" },
+        { "code": "30304B", "display": "血液腫瘤次世代基因定序－小套組(≦100個基因)" },
+        { "code": "30305B", "display": "血液腫瘤次世代基因定序－大套組(＞100個基因)" },
+        { "code": "30306B", "display": "TP53基因突變分析實驗室開發檢測(LDTs)" },
+        { "code": "30307B", "display": "TCR基因重組單株性分析(LDTs)" }
+      ]
+    }]
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "resourceType": "ValueSet",
+  "id": "hgnc-vs",
+  "url": "https://nhicore.nhi.gov.tw/ngs/ValueSet/hgnc-vs",
+  "version": "1.0.0",
+  "name": "HGNCVS",
+  "title": "HUGO Gene Nomenclature Committee Gene Names (HGNC)",
+  "status": "active",
+  "experimental": false,
+  "date": "2024-12-12",
+  "publisher": "衛生福利部中央健康保險署",
+  "contact": [{ "name": "衛生福利部中央健康保險署", "telecom": [{ "system": "url", "value": "https://www.nhi.gov.tw" }] }],
+  "description": "This value set includes all HGNC Codes. Gene IDs from HGNC must be sent with the HGNC gene ID including the prefix 'HGNC:' as the code and the HGNC 'gene symbol' as display. Example: { \"system\": \"http://www.genenames.org\", \"code\": \"HGNC:1100\", \"display\": \"BRCA1\" }",
+  "compose": {
+    "include": [
+      { "system": "http://www.genenames.org" },
+      { "system": "http://www.genenames.org/genegroup" }
+    ]
+  }
+}
