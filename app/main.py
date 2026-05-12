@@ -6,8 +6,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.database import init_db, session_factory
 from app.logger import setup_logging, get_logger
-from app.routers import converter, pdf, loinc
-from app.seed import seed
+import app.valueset.models  # noqa: F401 — register tables with Base
+import app.ui.models         # noqa: F401 — register tables with Base
+from app.converter.router import router as converter_router
+from app.valueset.router import router as valueset_router
+from app.valueset.seed import seed
+from app.ui.router import router as ui_router
 
 settings = get_settings()
 setup_logging(log_level=settings.log_level, retention_days=settings.log_retention_days)
@@ -17,18 +21,9 @@ _TAGS_METADATA = [
     {
         "name": "converter",
         "description": (
-            "將 **VCF** 檔案轉換為 FHIR R4 `transaction` Bundle。\n\n"
-            "每個變異位點產生一組 `MolecularSequence` + `Observation` 資源，"
-            "Observation 包含 LOINC 標準化的基因名稱、HGVS c./p. notation、"
-            "VAF（等位基因頻率）及雜合/純合狀態。"
-        ),
-    },
-    {
-        "name": "pdf",
-        "description": (
-            "解析 NGS 機構出具的 **PDF 報告**，抽取結構化變異資料。\n\n"
-            "支援表格模式（大多數機構）與純文字 regex 模式（備援）。"
-            "回傳原始解析結果，不含 FHIR 轉換。"
+            "VCF → FHIR R4 `transaction` Bundle，以及 NGS PDF 報告解析。\n\n"
+            "- `POST /convert/vcf`：VCF 轉換，每個變異產生 `MolecularSequence` + `Observation`\n"
+            "- `POST /convert/pdf`：PDF 解析，回傳結構化變異資料（不含 FHIR 轉換）"
         ),
     },
 ]
@@ -64,9 +59,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(converter.router, prefix="/convert", tags=["converter"])
-app.include_router(pdf.router, prefix="/pdf", tags=["pdf"])
-app.include_router(loinc.router, prefix="/loinc", tags=["loinc"])
+app.include_router(converter_router, prefix="/convert", tags=["converter"])
+app.include_router(valueset_router, prefix="/valueset", tags=["valueset"])
+app.include_router(ui_router, prefix="/ui", tags=["ui"])
 
 
 @app.get("/health", summary="Health check", tags=["system"])

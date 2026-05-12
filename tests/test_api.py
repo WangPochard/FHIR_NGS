@@ -69,4 +69,3 @@ class TestOpenApi:
         schema = resp.json()
         tag_names = [t["name"] for t in schema.get("tags", [])]
         assert "converter" in tag_names
-        assert "pdf" in tag_names
