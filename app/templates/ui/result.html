@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}FHIR Bundle 結果{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h5 class="mb-0">FHIR Bundle 輸出</h5>
+  <div class="d-flex gap-2">
+    <a href="/ui/" class="btn btn-outline-secondary btn-sm">上傳新檔案</a>
+    <a href="/ui/jobs/{{ job.id }}/result/download" class="btn btn-primary btn-sm">下載 JSON</a>
+  </div>
+</div>
+
+<div class="card bg-dark text-light p-0">
+  <pre class="p-4 mb-0" style="max-height:80vh; overflow:auto; font-size:0.8rem">{{ bundle_json }}</pre>
+</div>
+{% endblock %}

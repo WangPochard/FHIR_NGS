@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}上傳 VCF{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-6">
+    <h4 class="mb-4">上傳 VCF 檔案</h4>
+    <form method="post" action="/ui/upload" enctype="multipart/form-data">
+      <div class="card p-4 bg-white">
+
+        <div class="mb-3">
+          <label class="form-label fw-bold">VCF 檔案</label>
+          <input type="file" name="file" class="form-control" accept=".vcf" required>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-bold">Patient ID</label>
+          <input type="text" name="patient_id" class="form-control" placeholder="例：P-001" required>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-bold">Specimen ID</label>
+          <input type="text" name="specimen_id" class="form-control" placeholder="例：SP-001" required>
+        </div>
+
+        <div class="mb-4">
+          <label class="form-label fw-bold">檢體類型</label>
+          <select name="specimen_type" class="form-select">
+            <option value="">— 未指定 —</option>
+            {% for c in specimen_types %}
+            <option value="{{ c.code }}|{{ c.display or c.code }}">{{ c.display or c.code }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <button type="submit" class="btn btn-primary w-100">上傳並解析</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
