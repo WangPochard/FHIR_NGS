@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}ValueSet 列表{% endblock %}
+
+{% block content %}
+<h4 class="mb-3">ValueSet / CodeSystem 列表</h4>
+<table class="table table-bordered table-hover bg-white">
+  <thead class="table-dark">
+    <tr>
+      <th>Title</th>
+      <th>Type</th>
+      <th>Code System</th>
+      <th class="text-center">Code 數</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for vs in valuesets %}
+    <tr style="cursor:pointer" onclick="location.href='/loinc/{{ vs.resource_id }}'">
+      <td>{{ vs.title }}</td>
+      <td><span class="badge {% if vs.resource_type == 'ValueSet' %}bg-primary{% else %}bg-secondary{% endif %}">{{ vs.resource_type }}</span></td>
+      <td><small class="text-muted">{{ vs.code_system or "—" }}</small></td>
+      <td class="text-center">{{ vs.codes | length }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

@@ -4,8 +4,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
+from app.database import init_db, session_factory
 from app.logger import setup_logging, get_logger
-from app.routers import converter, pdf
+from app.routers import converter, pdf, loinc
+from app.seed import seed
 
 settings = get_settings()
 setup_logging(log_level=settings.log_level, retention_days=settings.log_retention_days)
@@ -34,6 +36,9 @@ _TAGS_METADATA = [
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    await init_db()
+    async with session_factory() as session:
+        await seed(session)
     logger.info("FHIR NGS Converter started | hapi=%s", settings.hapi_fhir_url)
     yield
     logger.info("FHIR NGS Converter stopped")
@@ -61,6 +66,7 @@ app.add_middleware(
 
 app.include_router(converter.router, prefix="/convert", tags=["converter"])
 app.include_router(pdf.router, prefix="/pdf", tags=["pdf"])
+app.include_router(loinc.router, prefix="/loinc", tags=["loinc"])
 
 
 @app.get("/health", summary="Health check", tags=["system"])
