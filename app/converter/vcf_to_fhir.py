@@ -322,3 +322,55 @@ class VcfToFhirConverter:
     @staticmethod
     def _loinc(code: str, display: str) -> dict:
         return {"coding": [{"system": _LOINC, "code": code, "display": display}]}
+
+
+# ─── Module-level helpers for UI router ──────────────────────────────────────
+
+def parse_vcf_records(path: str | Path) -> list[VcfRecord]:
+    """Parse a VCF file and return all variant records."""
+    converter = VcfToFhirConverter(patient_id="tmp", specimen_id="tmp")
+    return list(converter._parse_vcf(path))
+
+
+def build_single_variant_resources(
+    record: VcfRecord,
+    patient_id: str,
+    specimen_id: str,
+    dna_change_type_code: str | None = None,
+    dna_change_type_display: str | None = None,
+    clinical_sig_key: str | None = None,
+) -> list[dict]:
+    """Build MolecularSequence + Observation(s) for one variant."""
+    converter = VcfToFhirConverter(patient_id=patient_id, specimen_id=specimen_id)
+    seq = converter._build_molecular_sequence(record)
+    obs = converter._build_variant_observation(record, seq_id=seq["id"])
+
+    if dna_change_type_code:
+        obs["component"].append({
+            "code": converter._loinc("48019-4", "DNA sequence variant type"),
+            "valueCodeableConcept": {
+                "coding": [{
+                    "system": _LOINC,
+                    "code": dna_change_type_code,
+                    "display": dna_change_type_display or "",
+                }]
+            },
+        })
+
+    resources: list[dict] = [seq, obs]
+
+    if clinical_sig_key and clinical_sig_key in CLINVAR_SIG:
+        code, display = CLINVAR_SIG[clinical_sig_key]
+        resources.append({
+            "resourceType": "Observation",
+            "id": VcfToFhirConverter._uid(),
+            "status": "final",
+            "code": converter._loinc(LOINC["clinical_sig"], "Genetic variation clinical significance"),
+            "subject": {"reference": f"Patient/{patient_id}"},
+            "derivedFrom": [{"reference": f"MolecularSequence/{seq['id']}"}],
+            "valueCodeableConcept": {
+                "coding": [{"system": _LOINC, "code": code, "display": display}]
+            },
+        })
+
+    return resources

@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}{{ vs.title }}{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-3">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="/valueset/">列表</a></li>
+    <li class="breadcrumb-item active">{{ vs.name }}</li>
+  </ol>
+</nav>
+
+<div class="card mb-4">
+  <div class="card-body">
+    <h5 class="card-title">{{ vs.title }}</h5>
+    <p class="text-muted mb-1"><small>{{ vs.url }}</small></p>
+    {% if vs.description %}
+    <p class="mb-0">{{ vs.description }}</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="d-flex justify-content-between align-items-center mb-2">
+  <span class="text-muted">共 {{ vs.codes | length }} 筆</span>
+  <input id="search" type="text" class="form-control w-auto" placeholder="搜尋 code 或 display...">
+</div>
+
+<table class="table table-bordered table-sm bg-white" id="codeTable">
+  <thead class="table-dark">
+    <tr>
+      <th style="width:180px">Code</th>
+      <th>Display</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for c in vs.codes %}
+    <tr>
+      <td><code>{{ c.code }}</code></td>
+      <td>{{ c.display or "" }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('search').addEventListener('input', function() {
+  const q = this.value.toLowerCase();
+  document.querySelectorAll('#codeTable tbody tr').forEach(row => {
+    row.style.display = row.innerText.toLowerCase().includes(q) ? '' : 'none';
+  });
+});
+</script>
+{% endblock %}

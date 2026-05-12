@@ -15,6 +15,12 @@ class Settings(BaseSettings):
     # HAPI FHIR
     hapi_fhir_url: str = "http://localhost:8080/fhir"
 
+    # Database
+    db_host: str = "localhost"
+    db_name: str = "fhir_ngs"
+    db_user: str = "fhir"
+    db_pwd: str = "fhir"
+
     # App metadata
     app_title: str = "FHIR NGS Converter"
     app_version: str = "0.1.0"

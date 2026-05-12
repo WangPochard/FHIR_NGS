@@ -1,0 +1,7 @@
+services:
+  fhir-ngs:
+    container_name: fhir-ngs
+    build: .
+    network_mode: host
+    env_file: .env
+    restart: unless-stopped

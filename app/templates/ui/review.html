@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}Variant {{ idx + 1 }} / {{ total }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h5 class="mb-0">Variant {{ idx + 1 }} / {{ total }}</h5>
+  <small class="text-muted">{{ job.filename }} | Patient: {{ job.patient_id }}</small>
+</div>
+
+<div class="progress mb-4" style="height:6px">
+  <div class="progress-bar" style="width:{{ ((idx + 1) / total * 100) | int }}%"></div>
+</div>
+
+<div class="row g-4">
+  <!-- 左欄：VCF 解析結果（唯讀）-->
+  <div class="col-md-5">
+    <div class="card p-3 bg-white h-100">
+      <h6 class="text-muted mb-3">從 VCF 解析</h6>
+      <table class="table table-sm table-borderless mb-0">
+        <tbody>
+          <tr><th>Chromosome</th><td>{{ draft.chrom }}</td></tr>
+          <tr><th>Position</th><td>{{ draft.pos }}</td></tr>
+          <tr><th>REF</th><td><code>{{ draft.ref }}</code></td></tr>
+          <tr><th>ALT</th><td><code>{{ draft.alt }}</code></td></tr>
+          {% if draft.rs_id %}<tr><th>rsID</th><td>{{ draft.rs_id }}</td></tr>{% endif %}
+          <tr><th>Reference</th><td>{{ draft.ref_genome }}</td></tr>
+          {% if draft.gene %}<tr><th>Gene</th><td>{{ draft.gene }}</td></tr>{% endif %}
+          {% if draft.hgvs_c %}<tr><th>HGVS c.</th><td>{{ draft.hgvs_c }}</td></tr>{% endif %}
+          {% if draft.hgvs_p %}<tr><th>HGVS p.</th><td>{{ draft.hgvs_p }}</td></tr>{% endif %}
+          {% if draft.consequence %}<tr><th>Consequence</th><td>{{ draft.consequence }}</td></tr>{% endif %}
+          {% if draft.af is not none %}<tr><th>AF</th><td>{{ draft.af }}</td></tr>{% endif %}
+          {% if draft.dp is not none %}<tr><th>Read Depth</th><td>{{ draft.dp }}</td></tr>{% endif %}
+          {% if draft.gt %}<tr><th>Genotype</th><td>{{ draft.gt }}</td></tr>{% endif %}
+          {% if draft.qual is not none %}<tr><th>QUAL</th><td>{{ draft.qual }}</td></tr>{% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 右欄：需要使用者補的 LOINC 欄位 -->
+  <div class="col-md-7">
+    <form method="post" action="/ui/jobs/{{ job.id }}/variants/{{ idx }}">
+      <div class="card p-3 bg-white h-100">
+        <h6 class="text-muted mb-3">補充資訊</h6>
+
+        <div class="mb-4">
+          <label class="form-label fw-bold">DNA 突變類型</label>
+          <select name="dna_change_type" class="form-select">
+            <option value="">— 未指定 —</option>
+            {% for c in dna_change_types %}
+            <option value="{{ c.code }}|{{ c.display or c.code }}"
+              {% if draft.dna_change_type_code == c.code %}selected{% endif %}>
+              {{ c.display or c.code }}
+            </option>
+            {% endfor %}
+          </select>
+          <div class="form-text">對應 LOINC 48019-4</div>
+        </div>
+
+        <div class="mb-4">
+          <label class="form-label fw-bold">臨床意義 (ClinVar)</label>
+          <select name="clinical_sig_key" class="form-select">
+            <option value="">— 未指定 —</option>
+            {% for key, (code, display) in clinical_sigs %}
+            <option value="{{ key }}"
+              {% if draft.clinical_sig_key == key %}selected{% endif %}>
+              {{ display }}
+            </option>
+            {% endfor %}
+          </select>
+          <div class="form-text">對應 LOINC 53037-8</div>
+        </div>
+
+        <div class="d-flex justify-content-between mt-auto pt-3">
+          {% if idx > 0 %}
+          <a href="/ui/jobs/{{ job.id }}/variants/{{ idx - 1 }}" class="btn btn-outline-secondary">← 上一筆</a>
+          {% else %}
+          <span></span>
+          {% endif %}
+
+          <button type="submit" class="btn btn-primary">
+            {% if is_last %}完成並產生 FHIR{% else %}儲存並繼續 →{% endif %}
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

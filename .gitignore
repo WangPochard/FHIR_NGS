@@ -5,3 +5,4 @@ CLAUDE.md
 .claude
 __pycache__
 ngs-venv
+.env
