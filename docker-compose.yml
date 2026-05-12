@@ -1,28 +1,7 @@
 services:
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: fhir_ngs
-      POSTGRES_USER: fhir
-      POSTGRES_PASSWORD: fhir
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U fhir -d fhir_ngs"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  app:
+  fhir-ngs:
+    container_name: fhir-ngs
     build: .
-    ports:
-      - "8000:8000"
+    network_mode: host
     env_file: .env
-    depends_on:
-      postgres:
-        condition: service_healthy
-
-volumes:
-  postgres_data:
+    restart: unless-stopped
