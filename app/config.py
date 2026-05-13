@@ -21,6 +21,15 @@ class Settings(BaseSettings):
     db_user: str = "fhir"
     db_pwd: str = "fhir"
 
+    # LLM (Ollama)
+    llm_ip: str = "localhost"
+    llm_port: int = 11434
+    llm_model: str = "llama3.1:8b"
+
+    @property
+    def llm_base_url(self) -> str:
+        return f"http://{self.llm_ip}:{self.llm_port}"
+
     # App metadata
     app_title: str = "FHIR NGS Converter"
     app_version: str = "0.1.0"
