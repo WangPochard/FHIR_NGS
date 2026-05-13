@@ -17,8 +17,26 @@ from app.converter.vcf_to_fhir import (
     parse_vcf_records,
 )
 from app.database import get_session
+from app.llm.service import llm_service
 from app.ui.models import ConversionJob, VariantDraft
 from app.valueset.models import ValueSet
+
+_VCF_EXTS = {".vcf"}
+_PDF_EXTS = {".pdf", ".txt"}
+
+_ZYGOSITY_TO_GT = {
+    "heterozygous": "0/1",
+    "homozygous":   "1/1",
+    "hemizygous":   "1",
+}
+
+_CLASSIFICATION_TO_KEY = {
+    "pathogenic":             "pathogenic",
+    "likely_pathogenic":      "likely_pathogenic",
+    "uncertain_significance": "vus",
+    "likely_benign":          "likely_benign",
+    "benign":                 "benign",
+}
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -41,8 +59,21 @@ async def upload(
     specimen_type: str = Form(""),   # "code|display"
     session: AsyncSession = Depends(get_session),
 ):
+    fname = file.filename or "upload"
+    ext = Path(fname).suffix.lower()
+    raw = await file.read()
+
+    if ext in _VCF_EXTS:
+        return await _handle_vcf(raw, fname, patient_id, specimen_id, specimen_type, session)
+    elif ext in _PDF_EXTS:
+        return await _handle_pdf(raw, fname, ext, patient_id, specimen_id, specimen_type, session)
+    else:
+        raise HTTPException(status_code=400, detail=f"不支援的檔案格式：{ext}，請上傳 .vcf、.pdf 或 .txt")
+
+
+async def _handle_vcf(raw: bytes, fname: str, patient_id: str, specimen_id: str, specimen_type: str, session: AsyncSession):
     with tempfile.NamedTemporaryFile(suffix=".vcf", delete=False) as tmp:
-        tmp.write(await file.read())
+        tmp.write(raw)
         tmp_path = tmp.name
 
     try:
@@ -53,14 +84,13 @@ async def upload(
     if not records:
         raise HTTPException(status_code=400, detail="VCF 檔案中沒有找到變異資料")
 
-    sp_code, sp_display = (specimen_type.split("|", 1) + [""])[:2] if specimen_type else ("", "")
-
+    sp_code, sp_display = _split_specimen(specimen_type)
     job = ConversionJob(
-        filename=file.filename or "upload.vcf",
+        filename=fname,
         patient_id=patient_id,
         specimen_id=specimen_id,
-        specimen_type_code=sp_code or None,
-        specimen_type_display=sp_display or None,
+        specimen_type_code=sp_code,
+        specimen_type_display=sp_display,
     )
     session.add(job)
     await session.flush()
@@ -68,6 +98,7 @@ async def upload(
     for i, rec in enumerate(records):
         session.add(VariantDraft(
             job_id=job.id,
+            source_type="vcf",
             index=i,
             chrom=rec.chrom,
             pos=rec.pos_0based + 1,
@@ -87,6 +118,76 @@ async def upload(
 
     await session.commit()
     return RedirectResponse(url=f"/ui/jobs/{job.id}/variants/0", status_code=303)
+
+
+async def _handle_pdf(raw: bytes, fname: str, ext: str, patient_id: str, specimen_id: str, specimen_type: str, session: AsyncSession):
+    suffix = ".pdf" if ext == ".pdf" else ".txt"
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        tmp.write(raw)
+        tmp_path = tmp.name
+
+    try:
+        parsed = llm_service.parse_ngs_report(tmp_path)
+    finally:
+        Path(tmp_path).unlink(missing_ok=True)
+
+    variants = parsed.get("variants") or []
+    if not variants:
+        raise HTTPException(status_code=400, detail="LLM 無法從報告中解析出任何變異資料，請確認檔案格式")
+
+    # Prefer form values; fall back to LLM-extracted values
+    resolved_patient_id = patient_id or parsed.get("patient_id") or "unknown"
+    sp_code, sp_display = _split_specimen(specimen_type)
+    if not sp_display and parsed.get("specimen_type"):
+        sp_display = parsed["specimen_type"]
+
+    job = ConversionJob(
+        filename=fname,
+        patient_id=resolved_patient_id,
+        specimen_id=specimen_id,
+        specimen_type_code=sp_code,
+        specimen_type_display=sp_display,
+    )
+    session.add(job)
+    await session.flush()
+
+    ref_genome = parsed.get("ref_genome") or "GRCh38"
+    source = "txt" if ext == ".txt" else "pdf"
+
+    for i, v in enumerate(variants):
+        zygosity = (v.get("zygosity") or "").lower()
+        classification = (v.get("classification") or "").lower()
+        pos_raw = v.get("pos")
+        session.add(VariantDraft(
+            job_id=job.id,
+            source_type=source,
+            index=i,
+            chrom=v.get("chrom"),
+            pos=int(pos_raw) if pos_raw is not None else None,
+            ref=v.get("ref"),
+            alt=v.get("alt"),
+            qual=None,
+            rs_id=v.get("rs_id"),
+            ref_genome=ref_genome,
+            gene=v.get("gene"),
+            hgvs_c=v.get("hgvs_c"),
+            hgvs_p=v.get("hgvs_p"),
+            consequence=v.get("consequence"),
+            af=float(v["af"]) if v.get("af") is not None else None,
+            dp=int(v["dp"]) if v.get("dp") is not None else None,
+            gt=_ZYGOSITY_TO_GT.get(zygosity),
+            clinical_sig_key=_CLASSIFICATION_TO_KEY.get(classification),
+        ))
+
+    await session.commit()
+    return RedirectResponse(url=f"/ui/jobs/{job.id}/variants/0", status_code=303)
+
+
+def _split_specimen(specimen_type: str) -> tuple[str | None, str | None]:
+    if not specimen_type:
+        return None, None
+    parts = specimen_type.split("|", 1)
+    return parts[0] or None, (parts[1] if len(parts) > 1 else None)
 
 
 @router.get("/jobs/{job_id}/variants/{idx}")
@@ -187,10 +288,10 @@ def _build_bundle(job: ConversionJob) -> dict:
     all_resources: list[dict] = []
     for draft in job.variants:
         record = VcfRecord(
-            chrom=draft.chrom,
-            pos_0based=draft.pos - 1,
-            ref=draft.ref,
-            alt=draft.alt,
+            chrom=draft.chrom or "",
+            pos_0based=(draft.pos - 1) if draft.pos is not None else 0,
+            ref=draft.ref or "",
+            alt=draft.alt or "",
             qual=draft.qual,
             filter_status="PASS",
             rs_id=draft.rs_id or "",
