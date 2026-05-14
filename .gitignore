@@ -6,3 +6,4 @@ CLAUDE.md
 __pycache__
 ngs-venv
 .env
+*.pdf
