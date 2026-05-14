@@ -16,6 +16,9 @@ logger = get_logger(__name__)
 # 快取根目錄：data/cache/pdf_pages/
 _CACHE_ROOT = Path(__file__).parents[2] / "data" / "cache" / "pdf_pages"
 
+# 前頁尾段帶入下一頁的字元數（跨頁上下文銜接）
+_OVERLAP_CHARS = 300
+
 # ── Prompts ───────────────────────────────────────────────────────────────────
 
 # 第 0 頁：抓 metadata + variants
@@ -187,6 +190,7 @@ class LLMService:
             total = len(pdf.pages)
             logger.info(f"總頁數: {total}")
             page_results: list[dict] = []
+            prev_tail = ""  # 前一頁尾段，用於跨頁銜接
 
             for i, page in enumerate(pdf.pages):
                 txt_cache = _CACHE_ROOT / f"{pdf_key}_p{i:04d}.txt"
@@ -206,13 +210,16 @@ class LLMService:
                     page_data = json.loads(json_cache.read_text(encoding="utf-8"))
                     logger.info(f"[p{i}/{total-1}] json cache hit | variants={len(page_data.get('variants', []))}")
                 else:
-                    page_data = self._llm_parse_page(page_text, is_first=(i == 0))
+                    # 拼入前頁尾段，讓跨頁變異描述保持連貫
+                    llm_input = (prev_tail + "\n" + page_text).strip() if prev_tail else page_text
+                    page_data = self._llm_parse_page(llm_input, is_first=(i == 0))
                     json_cache.write_text(
                         json.dumps(page_data, ensure_ascii=False, indent=2),
                         encoding="utf-8",
                     )
                     logger.info(f"[p{i}/{total-1}] LLM done | variants={len(page_data.get('variants', []))}")
 
+                prev_tail = page_text[-_OVERLAP_CHARS:]  # 取原始頁面尾段（不含前頁 overlap）
                 page_results.append(page_data)
 
         result = _merge_pages(page_results)
