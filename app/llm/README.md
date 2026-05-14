@@ -1,7 +1,7 @@
 # llm — PDF 長文件逐頁解析
 
 用 Ollama 本地 LLM 將 NGS PDF 報告（或 TXT）解析為結構化 JSON。
-核心設計：**逐頁處理 + 兩層快取**，中途出錯可從斷點繼續，不用重來。
+核心設計：**逐頁處理 + 跨頁 overlap + 兩層快取**，中途出錯可從斷點繼續，不用重來。
 
 ---
 
@@ -17,78 +17,110 @@ data/cache/pdf_pages/
 ```
 
 - **cache key**：PDF 檔案 SHA-256 前 12 碼（同一份 PDF 永遠命中同一組快取）
-- `.txt`：pdfplumber 抽文字，速度快，但仍快取以防 PDF 檔遺失
+- `.txt`：pdfplumber 抽文字，速度快，仍快取以防 PDF 遺失
 - `.json`：LLM 呼叫結果，最貴，也最容易中途掛掉
 
 重跑時，已存在的 `.json` 直接讀取，跳過 LLM 呼叫；已存在的 `.txt` 跳過 pdfplumber。
 
 ---
 
-## 頁面解析流程
+## 頁面解析流程（含 overlap）
 
 ```
-PDF 每一頁
-  │
-  ├─ 取頁面文字（txt 快取 or pdfplumber）
-  │
-  └─ LLM 解析（json 快取 or Ollama）
-       ├─ 第 0 頁：問 metadata（姓名/日期/panel）+ variants
-       └─ 後續頁：只問 variants（減少幻覺，prompt 更短）
+p0 原文            p1 原文            p2 原文
+[===============] [===============] [===============]
+              └──────┐         └──────┐
+                  300字              300字
+                  overlap            overlap
 
-全部頁面完成後 → _merge_pages()
-  ├─ metadata：第一個非 null 值優先
-  └─ variants：全部累加
+送 LLM 的實際內容：
+  p0：[p0 原文]
+  p1：[p0 尾 300字] + [p1 原文]   ← 跨頁變異不會被切斷
+  p2：[p1 尾 300字] + [p2 原文]
 ```
+
+- 第 0 頁：問 metadata（姓名/日期/panel）+ variants
+- 後續頁：只問 variants（prompt 更短，減少幻覺）
+- `prev_tail` 取的是**原始頁面**尾段，不含上一頁的 overlap，避免累積膨脹
+
+全部頁面完成後 → `_merge_pages()`
+- metadata：第一個非 null 值優先
+- variants：全部累加
 
 ---
 
-## 回傳格式
+## 為什麼 131K context window 夠用？— RoPE 說明
 
-```json
-{
-  "patient_name": "王小明",
-  "patient_id": "A123456",
-  "report_date": "2024-03-15",
-  "panel_name": "腫瘤基因套組 56 基因",
-  "specimen_type": "血液",
-  "ref_genome": "GRCh38",
-  "conclusion": "偵測到 BRCA2 致病性變異",
-  "variants": [
-    {
-      "gene": "BRCA2",
-      "hgvs_c": "c.5946delT",
-      "hgvs_p": "p.Ser1982ArgfsTer22",
-      "chrom": "13",
-      "pos": 32340300,
-      "ref": "AT",
-      "alt": "A",
-      "zygosity": "heterozygous",
-      "consequence": "frameshift_variant",
-      "classification": "pathogenic",
-      "af": 0.48,
-      "dp": 120,
-      "rs_id": "rs80359550"
-    }
-  ]
-}
+### LLM 怎麼知道一個 token 在第幾個位置？
+
+最直覺的方式是「給每個位置一個編號，加進去」：
+
+```
+原始 token 向量：  [0.8,  0.3,  0.5]
+位置 3 的編號：   +[3.0,  3.0,  3.0]
+加完之後：         [3.8,  3.3,  3.5]   ← 模型靠這個區分位置
 ```
 
----
+問題：加法是線性的，位置 100 和位置 101 的差異，跟位置 1 和位置 2 的差異長得一模一樣，模型很難從中學到「相對距離」的意義。
 
-## TXT 檔案
+### RoPE 的做法：用旋轉取代加法
 
-整份送 LLM（無分頁問題），截斷上限 8000 字。無快取（TXT 通常較小）。
+RoPE 不加數字，而是把 token 向量**旋轉一個角度**，位置越後面旋轉越多：
+
+```
+位置 1，旋轉 1°        位置 2，旋轉 2°        位置 3，旋轉 3°
+
+[cos1° -sin1°  0 ]    [cos2° -sin2°  0 ]    [cos3° -sin3°  0 ]
+[sin1°  cos1°  0 ] ×v [sin2°  cos2°  0 ] ×v [sin3°  cos3°  0 ] ×v
+[  0      0    1 ]    [  0      0    1 ]    [  0      0    1 ]
+```
+
+每個位置對應一個唯一的旋轉角，就像時鐘上的分針一樣，看角度就知道現在幾點。
+
+關鍵優勢：**旋轉是相對的**。
+兩個 token 做 attention 計算時，相對角度（位置差）會自然保留，
+不管這對 token 在句子的哪個位置，只要距離相同，旋轉差就相同。
+
+### RoPE Scaling：把刻度壓縮，塞進更多位置
+
+原始訓練只到位置 4096，角度從 0° 轉到 4096°。
+超過 4096 就沒見過，模型不知道那個角度代表什麼。
+
+RoPE Scaling 的做法：**把每步的旋轉角縮小**（除以一個 scale factor）
+
+```
+原始（最多 4096 個位置）：
+  位置 1 → 旋轉 1.0°
+  位置 2 → 旋轉 2.0°
+  ...
+  位置 4096 → 旋轉 4096°   ← 到頂了
+
+÷ 32 之後（最多 131072 個位置）：
+  位置 1    → 旋轉 0.03°
+  位置 4096 → 旋轉 128°    ← 還很小
+  ...
+  位置 131072 → 旋轉 4096° ← 才到頂
+```
+
+同樣的「旋轉空間」，現在可以放 32 倍的位置。
+模型看到的旋轉角度還是在訓練過的範圍內，所以能理解。
+
+### 本專案的數字
+
+| 參數 | 值 |
+|------|-----|
+| 原始訓練 context | 4,096 token |
+| RoPE Scaling 後 | **131,072 token** |
+| 實測最大頁面 | ~4,700 字元 ≈ 1,200 token（英文）|
+| overlap 300 字 | ≈ 75 token |
+| 單頁送入 LLM 總量 | < 2,000 token → 完全在安全範圍內 |
 
 ---
 
 ## 設定
 
-`app/config.py` 相關欄位：
-
 | 變數 | 說明 | 預設 |
 |------|------|------|
-| `LLM_IP` | Ollama 主機 | `localhost` |
-| `LLM_PORT` | Ollama port | `11434` |
+| `LLM_IP` / `LLM_PORT` | Ollama 主機位址 | `localhost:11434` |
 | `LLM_MODEL` | 模型名稱 | `llama3.1:8b` |
-
-模型需支援 JSON output；建議 context window ≥ 8K。
+| `_OVERLAP_CHARS` | 跨頁 overlap 字元數（`service.py`） | `300` |
